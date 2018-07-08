@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Balls</title>
+        <script type="text/javascript">
+            // define constants and global variables
+            var SX = 500;
+            var SY = 500;
+            var BALL_CNT = 200;
+            var ctx;
+            var balls;
+
+            // define a ball class
+            function Ball(color, x, y, radius, dx, dy)
+            {
+                this.color = color;
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.dx = dx;
+                this.dy = dy;
+                this.draw = function()
+                {
+                    this.x += this.dx;
+                    this.y += this.dy;
+                    if (this.x < this.radius)
+                    {
+                        this.x = this.radius;
+                        this.dx *= -1;
+                    }
+                    if (this.x > (SX-this.radius))
+                    {
+                        this.x = SX-this.radius;
+                        this.dx *= -1;
+                    }
+                    if (this.y < this.radius)
+                    {
+                        this.y = this.radius;
+                        this.dy *= -1;
+                    }
+                    if (this.y > (SY-this.radius))
+                    {
+                        this.y = SY-this.radius;
+                        this.dy *= -1;
+                    }
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius, 0, 2*Math.PI, true);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+
+            // function used to return a random integer
+            function randInt(min, max)
+            {
+                var min = Math.ceil(min);
+                var max = Math.floor(max);
+                return Math.floor(Math.random() * (max-min+1)) + min;
+            }
+
+            // initialization function
+            function init()
+            {
+                var canvas = document.getElementById("drawing");
+                ctx = canvas.getContext('2d');
+
+                balls = new Array(BALL_CNT);
+                for (var i = 0; i < BALL_CNT; i++)
+                {
+                    var colorIndex = randInt(0,3);
+                    var color;
+                    if (colorIndex == 0) { color = "rgb(255,0,0)"; }
+                    else if (colorIndex == 1) { color = "rgb(0,255,0)"; }
+                    else if (colorIndex == 2) { color = "rgb(0,0,255)"; }
+                    else { color = "rgb(255,255,0)"}
+                    var radius = randInt(5,10);
+                    var x = randInt(radius, SX-radius);
+                    var y = randInt(radius, SY-radius);
+                    var dx = randInt(2,5);
+                    if (randInt(0,1) == 0)
+                        dx *= -1;
+                    var dy = randInt(2,5);
+                    if (randInt(0,1) == 0)
+                        dy *= -1;
+                    balls[i] = new Ball(color, x, y, radius, dx, dy);
+                }
+                setInterval(draw,50);
+            }
+
+            // draw function
+            function draw()
+            {
+                ctx.fillStyle = "rgb(0,0,0)";
+                ctx.fillRect(0,0,SX,SY);
+                for (var i = 0; i < BALL_CNT; i++)
+                    balls[i].draw();
+            }
+        </script>
+    </head>
+    <body onload="init()">
+        <canvas id="drawing" width="500" height="500">
+            <p>Your browser does not support the canvas tag</p>
+        </canvas>
+    </body>
+</html>

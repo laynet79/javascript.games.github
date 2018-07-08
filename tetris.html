@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Tetris</title>
+        <script type="text/javascript">
+
+            let BLOCK_SIZE = 15;
+            let ROWS = 24;
+            let COLS = 8;
+
+            let RED = "rgb(255,0,0)";
+            let GREEN = "rgb(0,255,0)";
+            let BLUE = "rgb(0,0,255";
+            let YELLOW = "rgb(255,255,0)";
+            let CYAN = "rgb(0,255,255)";
+            let MAGENTA = "rgb(255,0,255";
+            let GRAY = "rgb(100,100,100)";
+
+            var keyboard = 0;
+            let KEY_UP = 38;
+            let KEY_DOWN = 40;
+            let KEY_LEFT = 37;
+            let KEY_RIGHT = 39;
+
+            var ctx;
+
+            var tetris;
+
+            //-----------------------------------
+            class Point
+            {
+                constructor(x,y) { this.x = x; this.y = y; }
+            }
+            //-----------------------------------
+            class Block
+            {
+                constructor(pos, color) { this.pos = pos; this.color = color; }
+                absPos(origin) { return new Point(this.pos.x+origin.x, this.pos.y+origin.y); }
+                posIndepBlock() { return new Block(new Point(0,0), this.color); }
+                rotated() { return new Block(new Point(this.pos.y, -this.pos.x), this.color); }
+                paint(origin)
+                {
+                    let x = (origin.x+this.pos.x) * BLOCK_SIZE;
+                    let y = (origin.y+this.pos.y) * BLOCK_SIZE;
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(x+1, y+1, BLOCK_SIZE-2, BLOCK_SIZE-2);
+                }
+            }
+            //-----------------------------------
+            class Shape
+            {
+                constructor(pos) { this.pos = pos; this.blocks = [0,0,0,0]; }
+                rotate(well)
+                {
+                    var rotatedBlocks = [this.blocks[0].rotated(), this.blocks[1].rotated(), this.blocks[2].rotated(), this.blocks[3].rotated()];
+                    if (this.validMove(well, this.pos, rotatedBlocks))
+                    {
+                        this.blocks = rotatedBlocks;
+                        return true;
+                    }
+                    return false;
+                }
+                move(well, dx, dy)
+                {
+                    var newPos = new Point(this.pos.x+dx, this.pos.y+dy);
+                    if (this.validMove(well, newPos, this.blocks))
+                    {
+                        this.pos = newPos;
+                        return true;
+                    }
+                    return false;
+                }
+                validMove(well, origin, blks)
+                {
+                    for (var i = 0; i < 4; i++)
+                    {
+                        if (well.occupied(blks[i].absPos(origin)))
+                        {
+                            return false;
+                        }
+                    }
+                    return true;
+                }
+                placeInWell(well)
+                {
+                    for (var i = 0; i < 4; i++)
+                    {
+                        well.addBlock(this.blocks[i].posIndepBlock(), this.blocks[i].absPos(this.pos));
+                    }
+                }
+                paint()
+                {
+                    for (var i = 0; i < 4; i++)
+                    {
+                        this.blocks[i].paint(this.pos);
+                    }
+                }
+                static randomShape(pos)
+                {
+                    var type = Math.floor(Math.random() * (7-1+1)) + 1;
+                    if (type == 1) { return new Cube(pos); }
+                    else if (type == 2) { return new Bar(pos); }
+                    else if (type == 3) { return new Left(pos); }
+                    else if (type == 4) { return new Right(pos); }
+                    else if (type == 5) { return new Zig(pos); }
+                    else if (type == 6) { return new Zag(pos); }
+                    else  { return new Tee(pos); }
+                }
+            }
+            //-----------------------------------
+            class Bar extends Shape
+            {
+                constructor(pos)
+                {
+                    super(pos);
+                    this.blocks[0] = new Block(new Point(0,-2), RED);
+                    this.blocks[1] = new Block(new Point(0,-1), RED);
+                    this.blocks[2] = new Block(new Point(0,0), RED);
+                    this.blocks[3] = new Block(new Point(0,1), RED);
+                    
+                }
+            }
+            //-----------------------------------
+            class Cube extends Shape
+            {
+                constructor(pos)
+                {
+                    super(pos);
+                    this.blocks[0] = new Block(new Point(-1,-1), MAGENTA);
+                    this.blocks[1] = new Block(new Point(0,-1), MAGENTA);
+                    this.blocks[2] = new Block(new Point(-1,0), MAGENTA);
+                    this.blocks[3] = new Block(new Point(0,0), MAGENTA);
+                }
+            }
+            //-----------------------------------
+            class Left extends Shape
+            {
+                constructor(pos)
+                {
+                    super(pos);
+                    this.blocks[0] = new Block(new Point(-1,-1), GRAY);
+                    this.blocks[1] = new Block(new Point(-1,0), GRAY);
+                    this.blocks[2] = new Block(new Point(-1,1), GRAY);
+                    this.blocks[3] = new Block(new Point(0,1), GRAY);
+                }
+            }
+            //-----------------------------------
+            class Right extends Shape
+            {
+                constructor(pos)
+                {
+                    super(pos);
+                    this.blocks[0] = new Block(new Point(0,-1), YELLOW);
+                    this.blocks[1] = new Block(new Point(0,0), YELLOW);
+                    this.blocks[2] = new Block(new Point(0,1), YELLOW);
+                    this.blocks[3] = new Block(new Point(-1,1), YELLOW);
+                }
+            }
+            //-----------------------------------
+            class Zig extends Shape
+            {
+                constructor(pos)
+                {
+                    super(pos);
+                    this.blocks[0] = new Block(new Point(0,-1), BLUE);
+                    this.blocks[1] = new Block(new Point(-1,-1), BLUE);
+                    this.blocks[2] = new Block(new Point(-1,0), BLUE);
+                    this.blocks[3] = new Block(new Point(-2,0), BLUE);
+                }
+            }
+            //-----------------------------------
+            class Zag extends Shape
+            {
+                constructor(pos)
+                {
+                    super(pos);
+                    this.blocks[0] = new Block(new Point(-1,-1), GREEN);
+                    this.blocks[1] = new Block(new Point(0,-1), GREEN);
+                    this.blocks[2] = new Block(new Point(0,0), GREEN);
+                    this.blocks[3] = new Block(new Point(1,0), GREEN);
+                }
+            }
+            //-----------------------------------
+            class Tee extends Shape
+            {
+                constructor(pos)
+                {
+                    super(pos);
+                    this.blocks[0] = new Block(new Point(-1,-1), CYAN);
+                    this.blocks[1] = new Block(new Point(0,-1), CYAN);
+                    this.blocks[2] = new Block(new Point(1,-1), CYAN);
+                    this.blocks[3] = new Block(new Point(0,0), CYAN);
+                }
+            }
+            //-----------------------------------
+            class Well
+            {
+                constructor()
+                {
+                    this.rows = [];
+                    for (var r = 0; r < ROWS; r++)
+                    {
+                        this.rows.push(this.emptyRow())
+                    }
+                    this.shape = 0;
+                }
+                newGame()
+                {
+                    for (var r = 0; r < ROWS; r++)
+                    {
+                        for (var c = 0; c < COLS; c++)
+                        {
+                            this.rows[r][c] = 0;
+                        }
+                    }
+                    this.shape = 0;
+                }
+                update(shape)
+                {
+                    this.shape = shape;
+                    var cnt = 0;
+                    for (var r = 0; r < ROWS; r++)
+                    {
+                        if (this.rows[r].indexOf(0) == -1) // full row
+                        {
+                            for (var i = r-1; i >= 0; i--)
+                            {
+                                this.rows[i+1] = this.rows[i];
+                            }
+                            this.rows[0] = this.emptyRow();
+                            cnt += 1;
+                        }
+                    }
+                    var score = cnt * COLS;
+                    this.paint();
+                    return score;
+                }
+                emptyRow()
+                {
+                    var row = new Array(COLS).fill(0);
+                    return row;
+                }
+                addBlock(b, pos)
+                {
+                    this.rows[pos.y][pos.x] = b;
+                }
+                occupied(pos)
+                {
+                    return pos.x < 0 || pos.x >= COLS || pos.y < 0 || pos.y >= ROWS || this.rows[pos.y][pos.x] != 0;
+                }
+                paint()
+                {
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.fillRect(0,0,COLS*BLOCK_SIZE,ROWS*BLOCK_SIZE);
+                    if (this.shape != 0)
+                    {
+                        this.shape.paint();
+                    }
+                    var p = new Point(0,0);
+                    for (p.y = 0; p.y < ROWS; p.y++)
+                    {
+                        for (p.x = 0; p.x < COLS; p.x++)
+                        {
+                            var b = this.rows[p.y][p.x];
+                            if (b != 0)
+                            {
+                                b.paint(p);
+                            }
+                        }
+                    }
+                }
+            }
+            //-----------------------------------
+            class Tetris
+            {
+                constructor()
+                {
+                    this.well = new Well();
+                    this.statusLabel = document.getElementById('status');
+                    this.scoreLabel = document.getElementById('score');
+                    this.newGame();
+                }
+                newGame()
+                {
+                    this.gameOver = true;
+                    this.ticksPerMove = 50;
+                    this.tickCnt = 0;
+                    this.dropping = false;
+                    this.shape = 0;
+                    this.score = 0;
+                    this.well.newGame();
+                    this.gameOver = false;
+                    this.newGameReq = false;
+                    this.statusLabel.innerHTML = "playing";
+                }
+                update()
+                {
+                    if (this.newGameReq)
+                        newGame();
+
+                    if (this.gameOver)
+                        return;
+
+                    if (this.shape == 0)
+                    {
+                        this.shape = Shape.randomShape(new Point(COLS/2, 2));
+                        if (! this.shape.move(this.well, 0, 0))
+                        {
+                            this.gameOver = true;
+                            this.statusLabel.innerHTML = "game over";
+                            return;
+                        }
+                        this.score += Math.floor(50/this.ticksPerMove);
+                    }
+
+                    keyboard.update();
+                    if (keyboard.keyJustPressed(KEY_UP))
+                        this.shape.rotate(this.well);
+                    if (keyboard.keyJustPressed(KEY_DOWN))
+                        this.dropping = true;
+                    if (keyboard.keyJustPressed(KEY_LEFT))
+                        this.shape.move(this.well, -1, 0);
+                    if (keyboard.keyJustPressed(KEY_RIGHT))
+                        this.shape.move(this.well, 1, 0);
+
+                    this.tickCnt++;
+                    if (this.dropping || this.tickCnt >= this.ticksPerMove) {
+                        this.tickCnt = 0;
+                        if (! this.shape.move(this.well, 0, 1)) {
+                            this.shape.placeInWell(this.well);
+                            this.shape = 0;
+                            this.dropping = false;
+                        }
+                    }
+                    this.score += this.well.update(this.shape);
+                    this.scoreLabel.innerHTML = `${this.score}`;
+                    this.adjustRate();
+                }
+                adjustRate()
+                {
+                    if (this.score > 400)      { this.ticksPerMove = 3;  }
+                    else if (this.score > 300) { this.ticksPerMove = 6;  }
+                    else if (this.score > 200) { this.ticksPerMove = 12; }
+                    else if (this.score > 100) { this.ticksPerMove = 25; }
+                }
+            }
+            //-----------------------------------
+            class Keyboard
+            {
+                constructor()
+                {
+                    this.RELEASED = 0;
+                    this.JUSTPRESSED = 1;
+                    this.PRESSED = 2;
+                    this.keyDown = new Array(256).fill(false);
+                    this.keyState = new Array(256).fill(this.RELEASED);
+                }
+                onKeyDown(key)
+                {
+                    if (key >= 0 && key <= 256)
+                    {
+                        this.keyDown[key] = true;
+                    }
+                }
+                onKeyUp(key)
+                {
+                    if (key >= 0 && key <= 256)
+                    {
+                        this.keyDown[key] = false;
+                    }
+                }
+                keyDown(key)
+                {
+                    return this.keyState[key] == this.JUSTPRESSED || this.keyState[key] == this.PRESSED;
+                }
+                keyJustPressed(key)
+                {
+                    return this.keyState[key] == this.JUSTPRESSED;
+                }
+                update()
+                {
+                    for (var i = 0; i < 256; i++) {
+                        if (this.keyDown[i]) {
+                            if (this.keyState[i] == this.RELEASED) {
+                                this.keyState[i] = this.JUSTPRESSED;
+                            }
+                            else {
+                                this.keyState[i] = this.PRESSED;
+                            }
+                        }
+                        else {
+                            this.keyState[i] = this.RELEASED;
+                        }
+                    }
+                }
+            }
+            //-----------------------------------
+            // initialization function
+            function init()
+            {
+                var canvas = document.getElementById("drawing");
+                ctx = canvas.getContext('2d');
+                keyboard = new Keyboard();
+                tetris = new Tetris();
+                document.onkeydown = keyDown;
+                document.onkeyup = keyUp;
+                setInterval(draw,20);
+            }
+            //-----------------------------------
+            // draw function
+            function draw()
+            {
+                tetris.update();
+            }
+            //-----------------------------------
+            function keyDown(e)
+            {
+                keyboard.onKeyDown(e.keyCode);
+            }
+            //-----------------------------------
+            function keyUp(e)
+            {
+                keyboard.onKeyUp(e.keyCode);
+            }
+        </script>
+    </head>
+    <body onload="init()">
+         <form action="">
+            <button onclick="tetris.newGame()">New Game</button>
+            <p>
+                <label>Status: </lable>
+                <label id="status"></lable>
+            </p>
+             <p>
+                <label>Score: </lable>
+                <label id="score"></lable>
+            </p>
+        </form>
+        <canvas id="drawing" width="120" height="360">
+            <p>Your browser does not support the canvas tag</p>
+        </canvas>
+    </body>
+</html>

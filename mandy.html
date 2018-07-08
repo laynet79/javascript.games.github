@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Mandy</title>
+        <script type="text/javascript">
+
+            let RES = 512;
+            let MAX_ITER = 255;
+            let RATE = 20;
+            let NUM_COLORS = 16;
+
+            var canvas;
+            var ctx;
+            var mandy;
+
+            //---------------------------------------------
+            class Frame {
+                constructor(image, size, offX, offY, cx, cy) {
+                    this.image = image;
+                    this.size = size;
+                    this.offX = offX;
+                    this.offY = offY;
+                    this.cx = cx;
+                    this.cy = cy;
+                }
+            }
+            //---------------------------------------------
+            class Mandy {
+
+                constructor() {
+
+                    this.MSize = 4.0;
+                    this.MOffX = this.MOffY = -2.0;
+                    this.CX = this.CY = 0.0;
+                    this.modified = true;
+                    this.dragging = false;
+                    this.x1 = this.y1 = this.x2 = this.y2 = 0;
+                    this.frames = [];
+                    this.currFrame = -1;
+
+                    this.colors = [ "rgb(255,0,0)", "rgb(0,255,0)", "rgb(0,0,255)", "rgb(255,255,0)", "rgb(255,255,255)", "rgb(255,192,203)",
+                                    "rgb(255,0,255)", "rgb(0,255,255)", "rgb(100,100,255)", "rgb(120,120,120)", "rgb(255,165,0)", "rgb(100,255,100)",
+                                    "rgb(20,20,180)", "rgb(200,200,200)", "rgb(255,0,100)", "rgb(50,200,60)"];
+                }
+                
+                draw() {
+                    if (this.modified)
+                    {
+                        ctx.fillStyle = "rgb(0,0,0)";
+                        ctx.fillRect(0,0,512,512);
+                        this.drawMandy(RES, RES, this.MSize, this.MSize, this.MOffX, this.MOffY);
+                        var imageData = canvas.toDataURL("image/png");
+                        var image = new Image();
+                        image.src = imageData;
+                        this.frames.push(new Frame(image, this.MSize, this.MOffX, this.MOffY, this.CX, this.CY));
+                        this.currFrame = this.frames.length-1
+                        this.modified = false;
+                    }
+                    else {
+                        ctx.drawImage(this.frames[this.currFrame].image, 0, 0);
+                    }
+                    if (this.dragging) {
+                        ctx.strokeStyle = "rgb(255,0,0)";
+                        ctx.strokeRect(this.x1, this.y1, this.x2 - this.x1, this.y2 - this.y1);
+                    }
+                }
+                
+                drawMandy(rx, ry, mx, my, ox, oy) {
+                    let sx = mx / rx;
+                    let sy = my / ry;
+
+                    for (var i = 0; i < rx; i++)
+                    {
+                        var x = (i * sx) + ox;
+                        for (var j = 0; j < ry; j++)
+                        {
+                            var y = (j * sy) + oy;
+                            var pa = 0.0;
+                            var pb = 0.0;
+                            for (var cnt = 0; cnt < MAX_ITER; cnt++)
+                            {
+                                var a2 = pa * pa;
+                                var b2 = pb * pb;
+                                if ((a2 + b2) >= 4.0)
+                                {
+                                    ctx.fillStyle = this.colors[cnt%NUM_COLORS];
+                                    ctx.fillRect(i,j,1,1);
+                                    break;
+                                }
+                                var na = a2 - b2;
+                                var nb = 2.0 * pa * pb;
+                                pa = na + x;
+                                pb = nb + y;
+                            }
+                        }
+                    }
+                }
+
+                mouseDown(e,x,y) {
+                    if (e.button == 0)
+                    {
+                        this.x1 = this.x2 = x;
+                        this.y1 = this.y2 = y;
+                        this.dragging = true;
+                    }
+                    else
+                    {
+                        this.currFrame--;
+                        if (this.currFrame < 0)
+                            this.currFrame = this.frames.length - 1;
+                        var f = this.frames[this.currFrame];
+                        this.MSize = f.size;
+                        this.MOffX = f.offX;
+                        this.MOffY = f.offY;
+                        this.CX = f.cx;
+                        this.CY = f.cy;
+                        this.draw();
+                    }
+                }
+
+               mouseMove(x,y) {
+                    this.x2 = x;
+                    this.y2 = y;
+                    this.draw();
+                }
+
+                mouseUp(x,y) {
+                    if (this.dragging)
+                    {
+                        var left = Math.min(this.x1, this.x2);
+                        if (left < 0) left = 0;
+                        var right = Math.max(this.x1, this.x2);
+                        if (right >= RES) right = RES - 1;
+                        var top = Math.min(this.y1, this.y2);
+                        if (top < 0) top = 0;
+                        var bottom = Math.max(this.y1, this.y2);
+                        if (bottom >= RES) bottom = RES - 1;
+                        
+                        if ((left != right) && (top != bottom))
+                        {
+                            var selsize = Math.max(right - left, bottom - top);
+                            var cx = left + ((right - left) / 2);
+                            var cy = top + ((bottom - top) / 2);
+                            this.CX += (cx - (RES / 2)) * (this.MSize / RES);
+                            this.CY += (cy - (RES / 2)) * (this.MSize / RES);
+                            this.MSize *= (selsize*1.0) / RES;
+                            this.MOffX = this.CX - (this.MSize / 2.0);
+                            this.MOffY = this.CY - (this.MSize / 2.0);
+                            this.modified = true;
+                        }
+                        this.dragging = false;
+                        this.draw();
+                    }
+                }
+            }
+
+            //-----------------------------------
+            // initialization function
+            function init()
+            {
+                canvas = document.getElementById("drawing");
+                ctx = canvas.getContext('2d');
+                mandy = new Mandy();
+                mandy.draw();
+            }
+            //-----------------------------------
+            function mouseDown(e)
+            {
+                if (mandy) {
+                    var rect = canvas.getBoundingClientRect();
+                    mandy.mouseDown(e, e.clientX - rect.left, e.clientY - rect.top);
+                }
+            }
+            function mouseMove(e)
+            {
+                if (mandy) {
+                    var rect = canvas.getBoundingClientRect();
+                    mandy.mouseMove(e.clientX - rect.left, e.clientY - rect.top);
+                }
+            }
+            function mouseUp(e)
+            {
+                if (mandy)
+                    mandy.mouseUp(e.clientX, e.clientY);
+            }
+           //-----------------------------------
+         </script>
+    </head>
+    <body onload="init()">
+        <canvas id="drawing" width="512" height="512" onmousedown="mouseDown(event)" onmouseup="mouseUp(event)" onmousemove="mouseMove(event)">
+            <p>Your browser does not support the canvas tag</p>
+        </canvas>
+    </body>
+</html>

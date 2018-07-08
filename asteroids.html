@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Asteroids</title>
+        <script type="text/javascript">
+
+            let WHITE = "rgb(255,255,255)";
+            let RED = "rgb(255,0,0)";
+            let GREEN = "rgb(0,255,0)";
+            let BLUE = "rgb(0,0,255";
+            let YELLOW = "rgb(255,255,0)";
+            let CYAN = "rgb(0,255,255)";
+            let MAGENTA = "rgb(255,0,255";
+            let GRAY = "rgb(100,100,100)";
+
+            var keyboard;
+            let KEY_UP = 38;
+            let KEY_DOWN = 40;
+            let KEY_LEFT = 37;
+            let KEY_RIGHT = 39;
+            let KEY_SPACE = 32;
+
+            var boardWidth = 500;
+            var boardHeight = 500;
+            var ctx;
+
+            var asteroids;
+
+            //-----------------------------------
+            class Point
+            {
+                constructor(x,y) { this.x = x; this.y = y; }
+            }
+            //-----------------------------------
+            class Vec2 {
+                constructor(x, y) {
+                    this.x = x;
+                    this.y = y;
+                }
+
+                toPoint() {
+                    return new Point(Math.round(this.x),Math.round(this.y));
+                }
+
+                length() {
+                    return Math.sqrt(this.x*this.x + this.y*this.y);
+                }
+
+                static add(a, b) {
+                    return new Vec2(a.x+b.x, a.y+b.y);
+                }
+                static sub(a, b) {
+                    return new Vec2(a.x-b.x, a.y-b.y);
+                }
+
+                static scale(v, s) {
+                    return new Vec2(v.x*s, v.y*s);
+                }
+
+                static rotate(v, angle) {
+                    var rad = angle*Math.PI/180.0;
+                    var cosine = Math.cos(rad);
+                    var sine = Math.sin(rad);
+                    return new Vec2(v.x*cosine - v.y*sine, v.x*sine + v.y*cosine);
+                }
+
+                static random(minx, miny, maxx, maxy) {
+                    var x = Math.random() * (maxx-minx) + minx;
+                    var y = Math.random() * (maxy-miny) + miny;
+                    return new Vec2(x,y);
+                }
+
+            }
+            //-----------------------------------
+            class Shape {
+
+                constructor(pos, rot, radius, color) {
+                    this.pos = pos;
+                    this.rot = rot;
+                    this.radius = radius;
+                    this.color = color;
+                    this.vel = new Vec2(0,0);
+                    this.rotVel = 0.0;
+                    this.active = true;
+                }
+
+                setActive() { this.active = true; }
+                setInactive() { this.active = false; }
+                isActive() { return this.active; }
+
+                setPos(pos) { this.pos = pos; }
+                getPos() { return this.pos; }
+                setRot(rot) { this.rot = rot; }
+                getRot() { return this.rot; }
+                setVel(vel) { this.vel = vel; }
+                getVel() { return this.vel; }
+
+                setColor(color) { this.color = color; }
+
+                accelerate(forwardAcc, rotAcc) {
+                    if (! this.active) {
+                        return;
+                    }
+                    var rad = this.rot*Math.PI/180.0;
+                    this.vel.x += forwardAcc * Math.cos(rad);
+                    this.vel.y += forwardAcc * Math.sin(rad);
+                    this.rotVel += rotAcc;
+                }
+
+                rotate(angle) {
+                    this.rot += angle;
+                    this.rot = this.normalizeAngle(this.rot);
+                }
+
+                slowRotation(amount) {
+                    if (Math.abs(this.rotVel) < amount)
+                        this.rotVel = 0;
+                    if (this.rotVel > 0)
+                        this.rotVel -= amount;
+                    else if (this.rotVel < 0)
+                        this.rotVel += amount;
+                }
+
+                update() {
+                    if (! this.active)
+                        return;
+
+                    this.rot += this.rotVel;
+                    this.rot = this.normalizeAngle(this.rot);
+
+                    this.pos = Vec2.add(this.pos, this.vel);
+                    if ((this.pos.x + this.radius) < 0.0)
+                        this.pos.x = boardWidth + this.radius;
+                    else if ((this.pos.x - this.radius) > boardWidth)
+                        this.pos.x = -this.radius;
+                    if ((this.pos.y + this.radius) < 0.0)
+                        this.pos.y = boardHeight + this.radius;
+                    else if ((this.pos.y - this.radius) > boardHeight)
+                        this.pos.y = -this.radius;
+                }
+
+                intersects(other) {
+                    return Vec2.sub(this.pos, other.pos).length() < (this.radius+other.radius);
+                }
+
+                normalizeAngle(angle) {
+                    if (angle > 360.0)
+                        angle -= 360.0;
+                    else if (angle < 0.0)
+                        angle += 360.0;
+                    return angle;
+                }
+
+                paint() {}
+            }
+            //-----------------------------------
+            class Circle extends Shape {
+
+                constructor(pos, rot, radius, color) {
+                    super(pos, rot, radius, color);
+                }
+
+                paint() {
+                    if (! this.active)
+                        return;
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.arc(this.pos.x, this.pos.y, this.radius, 0, 2*Math.PI, true);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+            //-----------------------------------
+            class Poly extends Shape {
+
+                constructor(pos, rot, color) {
+                    super(pos, rot, 0.0, color);
+                    this.points = [];
+                    this.transPoints = [];
+                }
+
+                addPoint(p) {
+                    this.points.push(p);
+                    this.transPoints.push(p);
+                    var r = p.length();
+                    if (r > this.radius)
+                        this.radius = r;
+                }
+
+                transform() {
+                    for (var i = 0; i < this.points.length; i++) {
+                        this.transPoints[i] = Vec2.add(Vec2.rotate(this.points[i], this.rot), this.pos);
+                    }
+                }
+
+                contains(p) {
+                    var contained = false;
+                    var j = this.points.length-1;
+                    for (var i=0; i < this.points.length; i++) {
+                        var a = this.transPoints[i];
+                        var b = this.transPoints[j];
+                        if (((a.y > p.y) != (b.y > p.y)) &&
+                            (p.x < ((b.x-a.x) * (p.y-a.y) / (b.y-a.y) + a.x)))
+                        {
+                            contained = !contained;
+                        }
+                        j = i;
+                    }
+                    return contained;
+                }
+
+                intersects(other) {
+                    if (super.intersects(other)) { // do sphere test first
+                        for (var i = 0; i < this.transPoints.length; i++) {
+                            if (other.contains(this.transPoints[i])) {
+                                return true;
+                            }
+                        }
+                        for (var i = 0; i < other.transPoints.length; i++) {
+                            if (this.contains(other.transPoints[i])) {
+                                return true;
+                            }
+                        }
+                    }
+                    return false;
+                }
+
+                update() {
+                    if (! this.active)
+                        return;
+                    super.update();
+                    this.transform();
+                }
+
+                paint() {
+                    if (! this.active)
+                        return;
+                    ctx.fillStyle = this.color;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.round(this.transPoints[0].x), Math.round(this.transPoints[0].y));
+                    for (var i = 1; i < this.transPoints.length; i++) {
+                        ctx.lineTo(Math.round(this.transPoints[i].x), Math.round(this.transPoints[i].y));                        
+                    }
+                    ctx.closePath();
+                    ctx.fill();
+                }
+
+            }
+            //-----------------------------------
+            class Star extends Circle {
+
+                constructor(pos) {
+                    super(pos, 0, 0.5, WHITE);
+                    this.intensity = Math.floor(Math.random() * 200) + 55;
+                    this.color = `rgb(${this.intensity},${this.intensity},${this.intensity})`;
+                }
+
+                update() {
+                    var dc = Math.floor(Math.random() * 20);
+                    if (Math.random() < 0.5)
+                        dc = -dc;
+                    this.intensity += dc;
+                    if (this.intensity < 50)
+                        this.intensity = 50;
+                    else if (this.intensity > 255)
+                        this.intensity = 255;
+                    this.color = `rgb(${this.intensity},${this.intensity},${this.intensity})`;
+                }
+            }
+            //-----------------------------------
+            class Bullet extends Circle {
+
+                constructor(pos, rot) {
+                    super(pos, rot, 2.0, RED);
+                    this.accelerate(10.0, 0);
+                }
+
+                update() {
+                    if (! this.active)
+                        return;
+                    super.update();
+                    if (this.pos.x < 0 || this.pos.x >= boardWidth || this.pos.y < 0 || this.pos.y >= boardHeight)
+                        this.active = false;
+                }
+            }
+            //-----------------------------------
+            class Ship extends Poly {
+
+                constructor(pos, rot) {
+                    super(pos, rot, GREEN);
+                    this.addPoint(new Vec2(10,0));
+                    this.addPoint(new Vec2(-10,-5));
+                    this.addPoint(new Vec2(-7,0));
+                    this.addPoint(new Vec2(-10,5));
+                }
+
+                update() {
+                    super.update();
+                    this.slowRotation(0.1);
+                }
+                
+            }
+            //-----------------------------------
+            var MIN_RADIUS = 10.0;
+            var MAX_RADIUS = 20.0;
+            var NUM_POINTS = 16;
+            class Rock extends Poly {
+                
+                constructor(pos, rot, gen) {
+                    super(pos, rot, BLUE);
+                    this.gen = gen;
+                    var scale = 1;
+                    if (gen == 2)
+                        scale = 0.6;
+                    else if (gen == 3)
+                        scale = 0.35;
+                    var angle = 0.0;
+                    var dAngle = (360.0/NUM_POINTS) * Math.PI/180.0;
+                    for (var i = 0; i < NUM_POINTS; i++) {
+                        var r = (Math.random() * (MAX_RADIUS-MIN_RADIUS) + MIN_RADIUS) * scale;
+                        var x = r * Math.cos(angle);
+                        var y = r * Math.sin(angle);
+                        this.addPoint(new Vec2(x,y));
+                        angle += dAngle;
+                    }
+                }
+
+                getGen() { return this.gen; }
+            }
+            //-----------------------------------
+            let NUM_ROCKS = 5;
+            let ROCK_MIN_SPEED = 2.0;
+            let ROCK_MAX_SPEED = 4.0;
+            let ROCK_MIN_ROT = 1.0;
+            let ROCK_MAX_ROT = 4.0;
+            let NUM_STARS = 200;
+
+            class Asteroids {
+
+                constructor() {
+                    this.shipCntDown = 0;
+                    this.gameCntDown = 0;
+                    this.ship = 0;
+                    this.gameOver = false;
+                    this.rocks = [];
+                    this.deadRocks = [];
+                    this.newRocks = [];
+                    this.bullets = [];
+                    this.deadBullets = [];
+                    this.stars = [];
+                    this.initialize();
+                }
+
+                initialize() {
+                    this.createRocks();
+                    this.createStars();
+                    this.createShip();
+                }
+
+                createRocks() {
+                    this.rocks = [];
+                    for (var i = 0; i < NUM_ROCKS; i++) {
+                        var pos = Vec2.random(0,0,boardWidth,boardHeight);
+                        var rot = Math.random() * 360.0;
+                        var speed = Math.random() * (ROCK_MAX_SPEED-ROCK_MIN_SPEED) + ROCK_MIN_SPEED;
+                        var rotSpeed = Math.random() * (ROCK_MAX_ROT-ROCK_MIN_ROT) + ROCK_MIN_ROT;
+                        if (Math.random() > 0.5)
+                            rotSpeed = -rotSpeed;
+                        var rock = new Rock(pos, rot, 1);
+                        rock.accelerate(speed, rotSpeed);
+                        this.rocks.push(rock);
+                    }
+                }
+
+                createChildRock(p, b, angle) {
+                    var cVel = Vec2.rotate(b.getVel(), angle);
+                    cVel = Vec2.scale(cVel, 0.3 / cVel.length());
+                    cVel = Vec2.add(cVel, p.getVel());
+                    var c = new Rock(p.getPos(), 0, p.getGen()+1);
+                    var rotSpeed = Math.random() * (ROCK_MAX_ROT-ROCK_MIN_ROT) + ROCK_MIN_ROT;
+                    c.setVel(cVel);
+                    c.accelerate(0, rotSpeed);
+                    return c;
+                }
+
+                createStars() {
+                    for (var i = 0; i < NUM_STARS; i++)
+                        this.stars.push(new Star(Vec2.random(0,0,boardWidth,boardHeight)));
+                }
+
+                createShip() {
+                    this.ship = new Ship(new Vec2(boardWidth/2,boardHeight/2), -90.0);
+                }
+
+                update() {
+                    if (! this.gameOver && this.rocks.length == 0) {
+                        this.gameOver = true;
+                        this.gameCntDown = 100;
+                    }
+                    if (this.gameOver) {
+                        this.gameCntDown--;
+                        if (this.gameCntDown == 0) {
+                            this.createRocks();
+                            this.gameOver = false;
+                        }
+                    }
+
+                    for (var i = 0; i < this.rocks.length; i++)
+                        this.rocks[i].update();
+                    this.ship.update();
+                    for (var i = 0; i < this.bullets.length; i++)
+                        this.bullets[i].update();
+
+                    keyboard.update();
+                    this.handleShip();
+                    this.handleRocks();
+                    this.handleBullets();
+                    this.handleStars();
+
+                    this.paint();
+                }
+
+                handleShip() {
+                    if (keyboard.keyIsDown(KEY_UP))
+                        this.ship.accelerate(0.25, 0);
+                    if (keyboard.keyIsDown(KEY_DOWN))
+                        this.ship.accelerate(-0.25, 0);
+                    if (keyboard.keyIsDown(KEY_LEFT))
+                        this.ship.rotate(-5);
+                    if (keyboard.keyIsDown(KEY_RIGHT))
+                        this.ship.rotate(5);
+
+                    if (this.shipCntDown > 0) {
+                        this.shipCntDown--;
+                        if (this.shipCntDown <= 0) {
+                            this.ship.setColor(GREEN);
+                        }
+                    }
+                }
+
+                handleRocks() {
+                    for (var i = 0; i < this.rocks.length; i++) {
+                        var rock = this.rocks[i];
+                        if (rock.isActive() && this.ship.intersects(rock)) {
+                            this.ship.setColor(RED);
+                            this.shipCntDown = 100;
+                        }
+                    }
+                    for (var i = 0; i < this.deadRocks.length; i++) {
+                        this.rocks.splice(this.rocks.indexOf(this.deadRocks[i]), 1);
+                    }
+                    this.deadRocks = []
+                }
+
+                handleBullets() {
+                    if (keyboard.keyJustPressed(KEY_SPACE))
+                        this.bullets.push(new Bullet(this.ship.getPos(), this.ship.getRot()));
+
+                    for (var i = 0; i < this.bullets.length; i++) {
+                        var b = this.bullets[i];
+                        if (b.isActive()) {
+                            for (var j = 0; j < this.rocks.length; j++) {
+                                var rock = this.rocks[j];
+                                if (rock.isActive() && rock.contains(b.getPos())) {
+                                    this.deadBullets.push(b);
+                                    this.deadRocks.push(rock);
+                                    if (rock.getGen() < 3) {
+                                        this.newRocks.push(this.createChildRock(rock, b, 90));
+                                        this.newRocks.push(this.createChildRock(rock, b, -90));
+                                    }
+                                }
+                            }
+                        }
+                        else {
+                            this.deadBullets.push(b);
+                        }
+                    }
+                    for (var i = 0; i < this.deadBullets.length; i++) {
+                        var b = this.deadBullets[i];
+                        this.bullets.splice(this.bullets.indexOf(b),1);
+                    }
+                    this.deadBullets = [];
+                    for (var i = 0; i < this.deadRocks.length; i++) {
+                        var rock = this.deadRocks[i];
+                        this.rocks.splice(this.rocks.indexOf(rock),1);
+                    }
+                    this.deadRocks = [];
+                    for (var i = 0; i < this.newRocks.length; i++) {
+                        var rock = this.newRocks[i];
+                        this.rocks.push(rock);
+                    }
+                    this.newRocks = [];
+                }
+
+                handleStars() {
+                    for (var i = 0; i < this.stars.length; i++) {
+                        this.stars[i].update();
+                    }
+                }
+
+                paint() {
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.fillRect(0,0,boardWidth,boardHeight);
+                    for (var i = 0; i < this.stars.length; i++) {
+                        this.stars[i].paint();
+                    }
+                    for (var i = 0; i < this.bullets.length; i++) {
+                        this.bullets[i].paint();
+                    }
+                    this.ship.paint();
+                    for (var i = 0; i < this.rocks.length; i++) {
+                        this.rocks[i].paint();
+                    }
+                }
+            }
+            //-----------------------------------
+            class Keyboard
+            {
+                constructor()
+                {
+                    this.RELEASED = 0;
+                    this.JUSTPRESSED = 1;
+                    this.PRESSED = 2;
+                    this.keyDown = new Array(256).fill(false);
+                    this.keyState = new Array(256).fill(this.RELEASED);
+                }
+                onKeyDown(key)
+                {
+                    if (key >= 0 && key <= 256)
+                    {
+                        this.keyDown[key] = true;
+                    }
+                }
+                onKeyUp(key)
+                {
+                    if (key >= 0 && key <= 256)
+                    {
+                        this.keyDown[key] = false;
+                    }
+                }
+                keyIsDown(key)
+                {
+                    return this.keyState[key] == this.JUSTPRESSED || this.keyState[key] == this.PRESSED;
+                }
+                keyJustPressed(key)
+                {
+                    return this.keyState[key] == this.JUSTPRESSED;
+                }
+                update()
+                {
+                    for (var i = 0; i < 256; i++) {
+                        if (this.keyDown[i]) {
+                            if (this.keyState[i] == this.RELEASED) {
+                                this.keyState[i] = this.JUSTPRESSED;
+                            }
+                            else {
+                                this.keyState[i] = this.PRESSED;
+                            }
+                        }
+                        else {
+                            this.keyState[i] = this.RELEASED;
+                        }
+                    }
+                }
+            }
+            //-----------------------------------
+            // initialization function
+            function init()
+            {
+                var canvas = document.getElementById("drawing");
+                ctx = canvas.getContext('2d');
+                keyboard = new Keyboard();
+                asteroids = new Asteroids();
+                document.onkeydown = keyDown;
+                document.onkeyup = keyUp;
+                setInterval(draw,30);
+            }
+            //-----------------------------------
+            // draw function
+            function draw()
+            {
+                asteroids.update();
+            }
+            //-----------------------------------
+            function keyDown(e)
+            {
+                keyboard.onKeyDown(e.keyCode);
+            }
+            //-----------------------------------
+            function keyUp(e)
+            {
+                keyboard.onKeyUp(e.keyCode);
+            }
+        </script>
+    </head>
+    <body onload="init()">
+        <canvas id="drawing" width="500" height="500">
+            <p>Your browser does not support the canvas tag</p>
+        </canvas>
+    </body>
+</html>

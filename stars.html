@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Stars</title>
+        <script type="text/javascript">
+
+            let NUM_STARS = 1000;
+            let RATE = 20;
+
+            var ctx;
+            var starField;
+
+            //-----------------------------------
+            class Star {
+                constructor() {
+                    this.x = this.rand(-1.0, 1.0);
+                    this.y = this.rand(-1.0,1.0);
+                    this.z = this.rand(0.0,1.0);
+                    this.d = this.rand(2,5);
+                    this.sx = 0;
+                    this.sy = 0;
+                    this.dragging = false;
+                }
+                update(speed, dxdz, dydz) {
+                    this.x = this.clamp(this.x + dxdz*this.z);
+                    this.y = this.clamp(this.y + dydz*this.z);
+                    this.z -= speed;
+                    if (this.z < 0.01)
+                    {
+                        this.x = this.rand(-1.0, 1.0);
+                        this.y = this.rand(-1.0,1.0);
+                        this.z = 1.0;
+                    }
+                }
+                draw(w,h) {
+                    var i = 1.0;
+                    if (this.z > 0.75)
+                        i = 1.0 - (this.z-0.75)/0.25;
+                    var intensity = Math.floor(i * 255);
+                    ctx.fillStyle = `rgb(${intensity},${intensity},${intensity})`;
+                    var s = 1/this.z;
+                    var rx = Math.floor(this.x * s * w + w);
+                    var ry = Math.floor(this.y * s * h + h);
+                    ctx.beginPath();
+                    ctx.arc(rx, ry, Math.floor(this.d/2), 0, 2*Math.PI, true);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                rand(min, max) {
+                    return Math.random() * (max-min+1) + min;
+                }
+                clamp(n) {
+                    if (n < -1)
+                        return n+2;
+                    if (n > 1)
+                        return n-2;
+                    return n;
+                }
+            }
+            //-----------------------------------
+            class StarField {
+                constructor() {
+                    this.stars = [];
+                    for (var i = 0; i < NUM_STARS; i++) {
+                        this.stars.push(new Star());
+                    }
+                    this.dxdz = 0.0;
+                    this.dydz = 0.0;
+                    this.w = 256;
+                    this.h = 256;
+                }
+                draw() {
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.fillRect(0,0,512,512);
+                    var speed = 0.25 * (RATE/1000);
+                    for (var i = 0; i < NUM_STARS; i++) {
+                        this.stars[i].update(speed, this.dxdz, this.dydz);
+                        this.stars[i].draw(this.w,this.h);
+                    }
+                    if (! this.dragging) {
+                        this.dxdz *= (4.0/5.0);
+                        this.dydz *= (4.0/5.0);
+                    }
+                }
+                mouseDown(x,y) {
+                    this.sx = x;
+                    this.sy = y;
+                    this.dragging = true;
+                }
+                mouseUp(x,y) {
+                    this.dragging = false;
+                }
+                mouseMove(x,y) {
+                    if (this.dragging) {
+                        this.dxdz = (this.sx-x)/1000;
+                        this.dydz = (this.sy-y)/1000;
+                    }
+                }
+            }
+            //-----------------------------------
+            // initialization function
+            function init()
+            {
+                var canvas = document.getElementById("drawing");
+                ctx = canvas.getContext('2d');
+                starField = new StarField();
+                setInterval(draw,RATE);
+            }
+            //-----------------------------------
+            // draw function
+            function draw()
+            {
+                starField.draw();
+            }
+            //-----------------------------------
+            function mouseDown(e)
+            {
+                if (starField)
+                    starField.mouseDown(e.clientX, e.clientY);
+            }
+            function mouseMove(e)
+            {
+                if (starField)
+                    starField.mouseMove(e.clientX, e.clientY);
+            }
+            function mouseUp(e)
+            {
+                if (starField)
+                    starField.mouseUp(e.clientX, e.clientY);
+            }
+           //-----------------------------------
+         </script>
+    </head>
+    <body onload="init()">
+        <canvas id="drawing" width="512" height="512" onmousedown="mouseDown(event)" onmouseup="mouseUp(event)" onmousemove="mouseMove(event)">
+            <p>Your browser does not support the canvas tag</p>
+        </canvas>
+    </body>
+</html>

@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Life</title>
+        <script type="text/javascript">
+
+            let RES = 128;
+            let MOD = 0x7f;
+            let D = 3;
+
+            var ctx;
+            var life;
+
+            //-----------------------------------
+            class Life {
+                constructor() {
+                    this.population = document.getElementById("populatoion");
+                    this.world = new Array(RES);
+                    this.cnt = new Array(RES);
+                    for (var i = 0; i < RES; i++) {
+                        this.world[i] = new Array(RES);
+                        this.cnt[i] = new Array(RES);
+                    }
+                    this.restart();
+                }
+
+                restart() {
+                    for (var y = 0; y < RES; y++) {
+                        for (var x = 0; x < RES; x++) {
+                            this.world[x][y] = this.randomLife();
+                        }
+                    }
+                }
+
+                update() {
+                    for (var y = 0; y < RES; y++) {
+                        for (var x = 0; x < RES; x++)
+                        {
+                            let X = x + RES;
+                            let Y = y + RES;
+                            this.cnt[x][y] = 0;
+                            if (this.world[(X-1)&MOD][(Y-1)&MOD])
+                                this.cnt[x][y]++;
+                            if (this.world[(X-1)&MOD][Y&MOD])
+                                this.cnt[x][y]++;
+                            if (this.world[(X-1)&MOD][(Y+1)&MOD])
+                                this.cnt[x][y]++;
+                            
+                            if (this.world[X&MOD][(Y-1)&MOD])
+                                this.cnt[x][y]++;
+                            if (this.world[X&MOD][(Y+1)&MOD])
+                                this.cnt[x][y]++;
+
+                            if (this.world[(X+1)&MOD][(Y-1)&MOD])
+                                this.cnt[x][y]++;
+                            if (this.world[(X+1)&MOD][Y&MOD])
+                                this.cnt[x][y]++;
+                            if (this.world[(X+1)&MOD][(Y+1)&MOD])
+                                this.cnt[x][y]++;
+                        }
+                    }
+                    var pop = 0;
+                    for (var y = 0; y < RES; y++) {
+                        for (var x = 0; x < RES; x++) {
+                            if (this.world[x][y]) {
+                                if (this.cnt[x][y] < 2 || this.cnt[x][y] > 3)
+                                    this.world[x][y] = false;
+                            }
+                            else {
+                                if (this.cnt[x][y] == 3)
+                                    this.world[x][y] = true;
+                            }
+                            if (this.world[x][y])
+                                pop++;
+                        }
+                    }
+                    population.innerHTML = `${pop}`;
+                    this.draw();
+                }
+
+                draw() {
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.fillRect(0,0,RES*D,RES*D);
+                    
+                    ctx.fillStyle = "rgb(0,255,0)";
+                    for (var y = 0; y < RES; y++) {
+                        for (var x = 0; x < RES; x++) {
+                            if (this.world[x][y])
+                                ctx.fillRect(x*D, y*D, D, D);
+                        }
+                    }
+                }
+
+                randomLife() {
+                    return Math.random() >= 0.6;
+                }
+            }
+            //-----------------------------------
+            // initialization function
+            function init()
+            {
+                var canvas = document.getElementById("drawing");
+                ctx = canvas.getContext('2d');
+                life = new Life();
+                setInterval(draw,100);
+            }
+            //-----------------------------------
+            // draw function
+            function draw()
+            {
+                life.update();
+            }
+        </script>
+    </head>
+    <body onload="init()">
+         <form action="">
+            <button onclick="life.restart()">Restart</button>
+            <p>
+                <label>Population: </lable>
+                <label id="population"></lable>
+            </p>
+        </form>
+        <canvas id="drawing" width="384" height="384">
+            <p>Your browser does not support the canvas tag</p>
+        </canvas>
+    </body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>Maze</title>
+        <script type="text/javascript">
+
+            let SX = 40;
+            let SY = 40;
+            let CELL_SIZE = 10;
+
+            var ctx;
+            var maze;
+
+            //-----------------------------------
+            class Neighbor {
+                constructor(dx, dy) {
+                    this.dx = dx;
+                    this.dy = dy;
+                }
+	        }
+            //-----------------------------------
+            class Cell {
+                constructor(x, y) {
+                    this.x = x;
+                    this.y = y;
+                    this.visited = false;
+                    this.isPath = false;
+                    this.wall = new Array(4);
+                    for (var i = 0; i < 4; i++)
+                        this.wall[i] = true;
+                }
+                paint() {
+                    var left = this.x * CELL_SIZE + CELL_SIZE;
+                    var right = left + CELL_SIZE;
+                    var top = this.y * CELL_SIZE + CELL_SIZE;
+                    var bottom = top + CELL_SIZE;
+                    ctx.strokeStyle ="rgb(0,255,0)";
+                    if (this.wall[0])
+                        this.line(right, top, right, bottom);
+                    if (this.wall[1])
+                        this.line(left, bottom, right, bottom);
+                    if (this.wall[2])
+                        this.line(left, top, left, bottom);
+                    if (this.wall[3])
+                        this.line(left, top, right, top);
+                    if(this.isPath) {
+                        var radius = CELL_SIZE / 5;
+                        var cxy = CELL_SIZE / 2;
+                        ctx.fillStyle ="rgb(255,0,0)";
+                        ctx.beginPath();
+                        ctx.arc(left + cxy, top + cxy, radius, 0, 2*Math.PI, true);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
+                line(sx,sy,ex,ey) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx,sy);
+                    ctx.lineTo(ex,ey);
+                    ctx.stroke();
+                }
+            }
+            //-----------------------------------
+            class Maze {
+
+                constructor() {
+                    this.neighbors = [new Neighbor(1,0), new Neighbor(0,1), new Neighbor(-1,0), new Neighbor(0,-1)];
+                    this.cells = new Array(SX);
+                    for (var x = 0; x < SX; x++)
+                        this.cells[x] = new Array(SY);
+                    this.newMaze();
+                }
+
+                newMaze() {
+                    for (var x = 0; x < SX; x++) {
+                        for (var y = 0; y < SY; y++)
+                            this.cells[x][y] = new Cell(x,y);
+                    }                    
+                    this.cells[0][0].wall[3] = false;
+                    this.cells[SX-1][SY-1].wall[1] = false;
+                    var startCell = this.cells[this.randomInt(0,SX-1)][this.randomInt(0,SY-1)];
+                    startCell.visited = true;
+                    this.buildFrom(startCell);
+                    this.count = 1;
+                }
+                
+                buildFrom(c) {
+                    var index = this.randomInt(0,3);
+                    for (var i = 0; i < 4; i++) {
+                        var nx = c.x + this.neighbors[index].dx;
+                        var ny = c.y + this.neighbors[index].dy;
+                        if (nx >= 0 && nx <= (SX-1) && ny >= 0 && ny <= (SY-1) && ! this.cells[nx][ny].visited) {
+                            var n = this.cells[nx][ny];
+                            c.wall[index] = false;
+                            var op = index + 2;
+                            if (op > 3)
+                                op -= 4;
+                            n.visited = true;
+                            n.wall[op] = false;
+                            this.buildFrom(n);
+                        }
+                        index += 1;
+                        if (index == 4)
+                            index = 0;
+                    }
+                }
+                
+                solve(c) {
+                    if(c.x == SX-1 && c.y == SY-1)
+                        return true;
+                    for(var i =0; i<4; i++){
+                        var nx = c.x + this.neighbors[i].dx;
+                        var ny = c.y + this.neighbors[i].dy;
+                        if(!c.wall[i] && ny >= 0 && ny < SY && !this.cells[nx][ny].isPath){
+                            this.cells[nx][ny].isPath = true;
+                            if(this.solve(this.cells[nx][ny]))
+                                return true;
+                        }
+                    }
+                    c.isPath = false;
+                    return false;
+                }
+                
+                paint() {
+                    ctx.fillStyle = "rgb(0,0,0)";
+                    ctx.fillRect(0,0,(SX+2)*CELL_SIZE,(SY+2)*CELL_SIZE);
+                    for (var x = 0; x < SX; x++)
+                        for (var y = 0; y< SY; y++)
+                            this.cells[x][y].paint();
+                }
+                
+                randomInt(min, max) {
+                    return Math.floor((max-min+1) * Math.random() + min);
+                }
+
+                mouseDown() {
+                    if (this.count == 1) {
+                        this.count = 2;
+                        this.cells[0][0].isPath = true;
+                        this.solve(this.cells[0][0]);
+                        this.paint();
+                    }
+                    else {
+                        this.newMaze();
+                        this.paint();
+                    }
+                }
+            }
+            //-----------------------------------
+            // initialization function
+            function init()
+            {
+                var canvas = document.getElementById("drawing");
+                ctx = canvas.getContext('2d');
+                maze = new Maze();
+                maze.paint();
+            }
+            //-----------------------------------
+            function mouseDown(e)
+            {
+                if (maze)
+                    maze.mouseDown();
+            }
+           //-----------------------------------
+         </script>
+    </head>
+    <body onload="init()">
+        <canvas id="drawing" width="512" height="512" onmousedown="mouseDown(event)">
+            <p>Your browser does not support the canvas tag</p>
+        </canvas>
+    </body>
+</html>
